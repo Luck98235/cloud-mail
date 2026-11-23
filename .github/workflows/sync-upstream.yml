@@ -1,0 +1,53 @@
+name: Sync upstream Cloud Mail
+
+on:
+  schedule:
+    - cron: '45 20 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream-cloud-mail
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Merge upstream updates
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git remote add upstream https://github.com/maillab/cloud-mail.git
+          git fetch --no-tags upstream main
+
+          previous_upstream=$(tr -d '[:space:]' < .github/upstream-main.sha)
+          current_upstream=$(git rev-parse upstream/main)
+
+          if [ "$previous_upstream" = "$current_upstream" ]; then
+            echo "Already current: $current_upstream"
+            exit 0
+          fi
+
+          if ! git merge-base --is-ancestor "$previous_upstream" "$current_upstream"; then
+            echo 'Upstream history was rewritten; refusing automatic synchronization.' >&2
+            exit 1
+          fi
+
+          git merge --no-edit upstream/main
+          printf '%s\n' "$current_upstream" > .github/upstream-main.sha
+          git add .github/upstream-main.sha
+          git commit --amend --no-edit
+          git push origin HEAD:main
+
+          echo "Synchronized upstream main to $current_upstream"
