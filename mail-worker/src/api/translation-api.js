@@ -37,7 +37,7 @@ app.post('/translation/google', async (c) => {
 	const format = body.format === 'html' ? 'html' : 'text';
 	const content = format === 'html' ? sanitizeHtmlForTranslation(body.content) : body.content;
 	const requestBody = {
-		q: content,
+		q: [content],
 		target: 'zh-CN',
 		format
 	};
@@ -53,10 +53,10 @@ app.post('/translation/google', async (c) => {
 	const data = await response.json().catch(() => null);
 	if (!response.ok) {
 		const googleError = data?.error;
-		const reason = googleError?.status || googleError?.message || `HTTP ${response.status}`;
+		const reason = googleError?.message || googleError?.status || `HTTP ${response.status}`;
 		console.error('Google Translation request failed', {
 			status: response.status,
-			reason: googleError?.status || 'unknown'
+			reason: googleError?.message || googleError?.status || 'unknown'
 		});
 		throw new BizError(`Google Translation failed: ${reason}`, 502);
 	}
