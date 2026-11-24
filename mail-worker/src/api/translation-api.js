@@ -36,24 +36,31 @@ app.post('/translation/google', async (c) => {
 
 	const format = body.format === 'html' ? 'html' : 'text';
 	const content = format === 'html' ? sanitizeHtmlForTranslation(body.content) : body.content;
-	const params = new URLSearchParams({
+	const requestBody = {
 		q: content,
 		target: 'zh-CN',
-		format,
-		key: apiKey
-	});
+		format
+	};
 	const response = await fetch('https://translation.googleapis.com/language/translate/v2', {
 		method: 'POST',
-		headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-		body: params,
+		headers: {
+			'Content-Type': 'application/json',
+			'x-goog-api-key': apiKey
+		},
+		body: JSON.stringify(requestBody),
 		signal: AbortSignal.timeout(20000)
 	});
+	const data = await response.json().catch(() => null);
 	if (!response.ok) {
-		await response.body?.cancel();
-		throw new BizError('Google Translation request failed', 502);
+		const googleError = data?.error;
+		const reason = googleError?.status || googleError?.message || `HTTP ${response.status}`;
+		console.error('Google Translation request failed', {
+			status: response.status,
+			reason: googleError?.status || 'unknown'
+		});
+		throw new BizError(`Google Translation failed: ${reason}`, 502);
 	}
 
-	const data = await response.json();
 	const translatedText = data?.data?.translations?.[0]?.translatedText;
 	if (typeof translatedText !== 'string') {
 		throw new BizError('Google Translation returned an invalid response', 502);
